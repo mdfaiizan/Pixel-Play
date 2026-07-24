@@ -11,6 +11,7 @@ function App() {
   // Navigation State
   const [projects, setProjects] = useState([]);
   const [activeProject, setActiveProject] = useState(null);
+  const [selectedPixel, setSelectedPixel] = useState(null);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isBackendConnected, setIsBackendConnected] = useState(true);

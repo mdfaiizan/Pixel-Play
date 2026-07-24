@@ -31,7 +31,7 @@ const Toolbar = ({
       <div className="sidebar-section">
         <h3 className="sidebar-section-title">Tools</h3>
         <div className="tool-grid">
-          <button 
+          <button
             className={`tool-button ${activeTool === 'pencil' ? 'active' : ''}`}
             onClick={() => setActiveTool('pencil')}
             title="Pencil (Draw color on click/drag)"
@@ -39,8 +39,8 @@ const Toolbar = ({
             <Pencil size={18} />
             <span>Pencil</span>
           </button>
-          
-          <button 
+
+          <button
             className={`tool-button ${activeTool === 'eyedropper' ? 'active' : ''}`}
             onClick={() => setActiveTool('eyedropper')}
             title="Eyedropper (Pick color from canvas)"
@@ -48,8 +48,8 @@ const Toolbar = ({
             <Pipette size={18} />
             <span>Color Pick</span>
           </button>
-          
-          <button 
+
+          <button
             className={`tool-button ${activeTool === 'pan' ? 'active' : ''}`}
             onClick={() => setActiveTool('pan')}
             title="Pan (Drag canvas to navigate)"
@@ -77,7 +77,7 @@ const Toolbar = ({
               />
             ))}
           </div>
-          
+
           <div className="custom-color-input">
             <input
               type="color"
@@ -97,7 +97,7 @@ const Toolbar = ({
                 if (/^#[0-9A-F]{6}$/i.test(val)) {
                   setActiveColor(val);
                 } else if (val.length <= 7) {
-                  setActiveColor(val); // Allow editing intermediate text
+                  setActiveColor(val);
                 }
               }}
             />
@@ -109,10 +109,10 @@ const Toolbar = ({
       <div className="sidebar-section">
         <h3 className="sidebar-section-title">Viewport</h3>
         <div className="history-controls" style={{ marginBottom: '0.75rem' }}>
-          <button 
+          <button
             className={`history-btn ${showGrid ? 'active' : ''}`}
             onClick={() => setShowGrid(!showGrid)}
-            style={{ 
+            style={{
               backgroundColor: showGrid ? 'rgba(59, 130, 246, 0.12)' : '',
               borderColor: showGrid ? 'var(--primary)' : ''
             }}
@@ -120,26 +120,26 @@ const Toolbar = ({
             <Grid size={16} />
             <span>{showGrid ? 'Grid On' : 'Grid Off'}</span>
           </button>
-          
+
           <button className="history-btn" onClick={onResetView}>
             <Maximize2 size={16} />
             <span>Fit View</span>
           </button>
         </div>
-        
+
         <div className="history-controls">
-          <button 
-            className="history-btn" 
-            onClick={onUndo} 
+          <button
+            className="history-btn"
+            onClick={onUndo}
             disabled={!canUndo}
             title="Undo (Ctrl+Z)"
           >
             <Undo size={16} />
             <span>Undo</span>
           </button>
-          <button 
-            className="history-btn" 
-            onClick={onRedo} 
+          <button
+            className="history-btn"
+            onClick={onRedo}
             disabled={!canRedo}
             title="Redo (Ctrl+Y)"
           >
@@ -164,9 +164,9 @@ const Toolbar = ({
             </div>
             <div className="hud-item" style={{ alignItems: 'center' }}>
               <span className="info-label">Color Preview</span>
-              <span 
-                className="color-preview-block" 
-                style={{ backgroundColor: hoveredPixel.hex }} 
+              <span
+                className="color-preview-block"
+                style={{ backgroundColor: hoveredPixel.hex }}
               />
             </div>
             <div className="hud-item">
@@ -201,18 +201,18 @@ const Toolbar = ({
       {/* 6. Save & Download actions */}
       <div className="sidebar-section" style={{ borderBottom: 'none', marginTop: 'auto' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <button 
-            className="btn-primary" 
-            style={{ width: '100%', justifyContent: 'center' }} 
+          <button
+            className="btn-primary"
+            style={{ width: '100%', justifyContent: 'center' }}
             onClick={onSave}
             disabled={isSaving}
           >
             <Save size={18} />
             <span>{isSaving ? 'Saving...' : 'Save Workspace'}</span>
           </button>
-          
-          <button 
-            className="btn-secondary" 
+
+          <button
+            className="btn-secondary"
             style={{ width: '100%', justifyContent: 'center' }}
             onClick={onDownload}
           >

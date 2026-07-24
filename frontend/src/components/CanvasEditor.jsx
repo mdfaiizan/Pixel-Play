@@ -26,6 +26,14 @@ const CanvasEditor = forwardRef(({
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, hex: '' });
+
+  // Close context menu on global click
+  useEffect(() => {
+    const closeMenu = () => setContextMenu(prev => prev.visible ? { ...prev, visible: false } : prev);
+    window.addEventListener('click', closeMenu);
+    return () => window.removeEventListener('click', closeMenu);
+  }, []);
 
   // Undo & Redo stacks
   const undoStackRef = useRef([]);
@@ -396,9 +404,31 @@ const CanvasEditor = forwardRef(({
     setPan({ x: newPanX, y: newPanY });
   };
 
-  // Prevent context menu to allow panning with right click
+  // Right-click to show custom context menu
   const handleContextMenu = (e) => {
-    e.preventDefault();
+    e.preventDefault(); // Prevent standard browser menu
+    
+    const coord = getPixelCoord(e);
+    if (coord && sourceCtxRef.current) {
+      // Get pixel data (RGBA) from offscreen canvas at clicked coordinate
+      const pixel = sourceCtxRef.current.getImageData(coord.x, coord.y, 1, 1).data;
+      const [r, g, b] = pixel;
+      
+      // Convert RGB values to Hex code string
+      const rgbToHex = (r, g, b) => '#' + [r, g, b].map(x => {
+        const hex = x.toString(16);
+        return hex.length === 1 ? '0' + hex : hex;
+      }).join('');
+      
+      const hexColor = rgbToHex(r, g, b).toUpperCase();
+      
+      setContextMenu({
+        visible: true,
+        x: e.clientX,
+        y: e.clientY,
+        hex: hexColor
+      });
+    }
   };
 
   return (
@@ -416,6 +446,59 @@ const CanvasEditor = forwardRef(({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
       />
+
+      {/* Custom Context Menu Option */}
+      {contextMenu.visible && (
+        <div 
+          className="glass"
+          style={{
+            position: 'fixed',
+            top: `${contextMenu.y}px`,
+            left: `${contextMenu.x}px`,
+            zIndex: 1000,
+            borderRadius: '8px',
+            padding: '4px',
+            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
+            minWidth: '160px',
+            border: '1px solid var(--border-color)',
+            animation: 'fadeIn 0.15s ease-out'
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard.writeText(contextMenu.hex)
+                .then(() => {
+                  alert(`Copied Hex Color: ${contextMenu.hex}`);
+                })
+                .catch(err => console.error('Failed to copy: ', err));
+              setContextMenu(prev => ({ ...prev, visible: false }));
+            }}
+            style={{
+              display: 'block',
+              width: '100%',
+              padding: '8px 12px',
+              background: 'transparent',
+              border: 'none',
+              color: '#fff',
+              textAlign: 'left',
+              fontSize: '0.85rem',
+              fontWeight: '500',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              transition: 'background 0.2s'
+            }}
+            onMouseOver={(e) => {
+              e.target.style.background = 'rgba(59, 130, 246, 0.18)';
+            }}
+            onMouseOut={(e) => {
+              e.target.style.background = 'transparent';
+            }}
+          >
+            Copy Hex Color ({contextMenu.hex})
+          </button>
+        </div>
+      )}
     </div>
   );
 });
