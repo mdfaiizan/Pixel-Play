@@ -23,6 +23,7 @@ function App() {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [showGrid, setShowGrid] = useState(true);
   const [hoveredPixel, setHoveredPixel] = useState(null);
+  const [copiedBuffer, setCopiedBuffer] = useState(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [projectName, setProjectName] = useState('Untitled Project');
 
@@ -308,6 +309,7 @@ function App() {
             setShowGrid={setShowGrid}
             hoveredPixel={hoveredPixel}
             imageSize={imageSize}
+            copiedBuffer={copiedBuffer}
             onUndo={() => editorRef.current?.undo()}
             onRedo={() => editorRef.current?.redo()}
             canUndo={editorRef.current?.canUndo}
@@ -333,6 +335,7 @@ function App() {
               showGrid={showGrid}
               onPixelHover={setHoveredPixel}
               onImageLoaded={setImageSize}
+              onCopiedBufferChange={setCopiedBuffer}
             />
 
             {/* Bottom Floating Info HUD overlay */}

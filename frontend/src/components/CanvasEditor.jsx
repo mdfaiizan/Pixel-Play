@@ -11,7 +11,8 @@ const CanvasEditor = forwardRef(({
   setPan,
   showGrid,
   onPixelHover,
-  onImageLoaded
+  onImageLoaded,
+  onCopiedBufferChange
 }, ref) => {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
@@ -26,7 +27,13 @@ const CanvasEditor = forwardRef(({
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
-  const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, hex: '' });
+  const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, hex: '', targetCoord: null });
+
+  // Box Selection States & Copied Buffer
+  const [selectionStart, setSelectionStart] = useState(null);
+  const [selectionRect, setSelectionRect] = useState(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [copiedPixels, setCopiedPixels] = useState(null);
 
   // Close context menu on global click
   useEffect(() => {
@@ -101,6 +108,80 @@ const CanvasEditor = forwardRef(({
       undoStackRef.current.shift();
     }
     updateHistoryStates();
+  };
+
+  // Copy selected area of pixels to buffer
+  const copySelection = (targetRect = selectionRect) => {
+    if (!targetRect || !sourceCtxRef.current) return null;
+    const { x, y, width, height } = targetRect;
+    if (width <= 0 || height <= 0) return null;
+
+    const imageData = sourceCtxRef.current.getImageData(x, y, width, height);
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = width;
+    tempCanvas.height = height;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.putImageData(imageData, 0, 0);
+
+    const bufferObj = {
+      width,
+      height,
+      imageData,
+      tempCanvas
+    };
+
+    setCopiedPixels(bufferObj);
+    if (onCopiedBufferChange) {
+      onCopiedBufferChange({ width, height });
+    }
+    return bufferObj;
+  };
+
+  // Paste copied pixel buffer onto source canvas starting at target pixel coordinate
+  const pasteCopiedPixels = (targetCoord, bufferToPaste = copiedPixels) => {
+    if (!targetCoord || !bufferToPaste || !sourceCtxRef.current || !sourceCanvasRef.current) return;
+
+    pushToUndoStack();
+
+    const { width: srcW, height: srcH, imageData: srcImageData } = bufferToPaste;
+    const destImageData = sourceCtxRef.current.getImageData(0, 0, imageSize.width, imageSize.height);
+
+    const srcData = srcImageData.data;
+    const destData = destImageData.data;
+
+    // Direct pixel-for-pixel copy into target destination starting at targetCoord
+    for (let sy = 0; sy < srcH; sy++) {
+      const dy = targetCoord.y + sy;
+      if (dy < 0 || dy >= imageSize.height) continue;
+
+      for (let sx = 0; sx < srcW; sx++) {
+        const dx = targetCoord.x + sx;
+        if (dx < 0 || dx >= imageSize.width) continue;
+
+        const srcIdx = (sy * srcW + sx) * 4;
+        const destIdx = (dy * imageSize.width + dx) * 4;
+
+        destData[destIdx]     = srcData[srcIdx];     // Red
+        destData[destIdx + 1] = srcData[srcIdx + 1]; // Green
+        destData[destIdx + 2] = srcData[srcIdx + 2]; // Blue
+        destData[destIdx + 3] = srcData[srcIdx + 3]; // Alpha
+      }
+    }
+
+    // Write exact pixel buffer back to offscreen source canvas
+    sourceCtxRef.current.putImageData(destImageData, 0, 0);
+
+    // Update selection box outline so it highlights the newly pasted pixels at targetCoord
+    const newPastedRect = {
+      x: targetCoord.x,
+      y: targetCoord.y,
+      width: srcW,
+      height: srcH
+    };
+    setSelectionRect(newPastedRect);
+
+    // Redraw main viewport canvas
+    draw();
   };
 
   // Hex to RGBA conversion helper
@@ -253,11 +334,29 @@ const CanvasEditor = forwardRef(({
         zoom
       );
     }
+
+    // Highlight selected pixel box rectangle
+    if (selectionRect) {
+      ctx.save();
+      const rectX = pan.x + selectionRect.x * zoom;
+      const rectY = pan.y + selectionRect.y * zoom;
+      const rectW = selectionRect.width * zoom;
+      const rectH = selectionRect.height * zoom;
+
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.25)';
+      ctx.fillRect(rectX, rectY, rectW, rectH);
+
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(rectX, rectY, rectW, rectH);
+      ctx.restore();
+    }
   };
 
   useEffect(() => {
     draw();
-  }, [zoom, pan, imageSize, showGrid, hoveredPixel]);
+  }, [zoom, pan, imageSize, showGrid, hoveredPixel, selectionRect]);
 
   // Calculate mouse coordinate relative to canvas image pixels
   const getPixelCoord = (e) => {
@@ -330,11 +429,21 @@ const CanvasEditor = forwardRef(({
   const handleMouseDown = (e) => {
     const coord = getPixelCoord(e);
 
-    if (activeTool === 'pan' || e.button === 1 || e.button === 2) {
-      // Middle or right click, or pan tool: start panning
+    if (e.button === 1 || e.button === 2) {
+      // Middle or right click
+      if (activeTool === 'pan' || e.button === 1) {
+        setIsPanning(true);
+        setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+        e.preventDefault();
+      }
+    } else if (activeTool === 'pan') {
       setIsPanning(true);
       setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-      e.preventDefault();
+    } else if (activeTool === 'select' && coord) {
+      setIsSelecting(true);
+      setSelectionStart(coord);
+      const initialRect = { x: coord.x, y: coord.y, width: 1, height: 1 };
+      setSelectionRect(initialRect);
     } else if (activeTool === 'pencil' && coord) {
       pushToUndoStack();
       setIsDrawing(true);
@@ -362,6 +471,19 @@ const CanvasEditor = forwardRef(({
         x: e.clientX - panStart.x,
         y: e.clientY - panStart.y
       });
+    } else if (isSelecting && activeTool === 'select' && coord && selectionStart) {
+      const minX = Math.min(selectionStart.x, coord.x);
+      const maxX = Math.max(selectionStart.x, coord.x);
+      const minY = Math.min(selectionStart.y, coord.y);
+      const maxY = Math.max(selectionStart.y, coord.y);
+
+      const nextRect = {
+        x: minX,
+        y: minY,
+        width: maxX - minX + 1,
+        height: maxY - minY + 1
+      };
+      setSelectionRect(nextRect);
     } else if (isDrawing && coord && activeTool === 'pencil') {
       // Draw pixel if mouse is down and moving over different pixels
       editPixel(coord);
@@ -369,16 +491,49 @@ const CanvasEditor = forwardRef(({
   };
 
   const handleMouseUp = () => {
+    if (isSelecting && selectionRect) {
+      // Auto-copy only if a multi-pixel region was dragged (width > 1 or height > 1)
+      if (selectionRect.width > 1 || selectionRect.height > 1) {
+        copySelection(selectionRect);
+      }
+    }
     setIsPanning(false);
     setIsDrawing(false);
+    setIsSelecting(false);
   };
 
   const handleMouseLeave = () => {
+    if (isSelecting && selectionRect) {
+      if (selectionRect.width > 1 || selectionRect.height > 1) {
+        copySelection(selectionRect);
+      }
+    }
     setIsPanning(false);
     setIsDrawing(false);
+    setIsSelecting(false);
     setHoveredPixel(null);
     onPixelHover(null);
   };
+
+  // Global keyboard shortcuts for Ctrl+C, Ctrl+V, Esc
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+        if (selectionRect) {
+          copySelection(selectionRect);
+        }
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
+        if (copiedPixels) {
+          const target = hoveredPixel || contextMenu.targetCoord || { x: 0, y: 0 };
+          pasteCopiedPixels(target);
+        }
+      } else if (e.key === 'Escape') {
+        setSelectionRect(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectionRect, copiedPixels, hoveredPixel, contextMenu]);
 
   // Zoom centered around mouse wheel cursor
   const handleWheel = (e) => {
@@ -426,7 +581,8 @@ const CanvasEditor = forwardRef(({
         visible: true,
         x: e.clientX,
         y: e.clientY,
-        hex: hexColor
+        hex: hexColor,
+        targetCoord: coord
       });
     }
   };
@@ -459,11 +615,77 @@ const CanvasEditor = forwardRef(({
             borderRadius: '8px',
             padding: '4px',
             boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
-            minWidth: '160px',
+            minWidth: '180px',
             border: '1px solid var(--border-color)',
             animation: 'fadeIn 0.15s ease-out'
           }}
         >
+          {selectionRect && (
+            <button
+              type="button"
+              onClick={() => {
+                copySelection(selectionRect);
+                setContextMenu(prev => ({ ...prev, visible: false }));
+              }}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '8px 12px',
+                background: 'transparent',
+                border: 'none',
+                color: '#fff',
+                textAlign: 'left',
+                fontSize: '0.85rem',
+                fontWeight: '500',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                transition: 'background 0.2s',
+                marginBottom: '2px'
+              }}
+              onMouseOver={(e) => {
+                e.target.style.background = 'rgba(59, 130, 246, 0.18)';
+              }}
+              onMouseOut={(e) => {
+                e.target.style.background = 'transparent';
+              }}
+            >
+              Copy Selected Pixels ({selectionRect.width} × {selectionRect.height} px)
+            </button>
+          )}
+
+          {copiedPixels && contextMenu.targetCoord && (
+            <button
+              type="button"
+              onClick={() => {
+                pasteCopiedPixels(contextMenu.targetCoord);
+                setContextMenu(prev => ({ ...prev, visible: false }));
+              }}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '8px 12px',
+                background: 'transparent',
+                border: 'none',
+                color: '#3b82f6',
+                textAlign: 'left',
+                fontSize: '0.85rem',
+                fontWeight: '600',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                transition: 'background 0.2s',
+                marginBottom: '2px'
+              }}
+              onMouseOver={(e) => {
+                e.target.style.background = 'rgba(59, 130, 246, 0.18)';
+              }}
+              onMouseOut={(e) => {
+                e.target.style.background = 'transparent';
+              }}
+            >
+              Paste Copied Pixels ({copiedPixels.width} × {copiedPixels.height} px at X:{contextMenu.targetCoord.x}, Y:{contextMenu.targetCoord.y})
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => {

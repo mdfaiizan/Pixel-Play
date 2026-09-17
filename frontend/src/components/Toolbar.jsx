@@ -1,5 +1,4 @@
-import React from 'react';
-import { Pencil, Pipette, Hand, Undo, Redo, Save, Download, Maximize2, Grid } from 'lucide-react';
+import { Pencil, Pipette, BoxSelect, Hand, Undo, Redo, Save, Download, Maximize2, Grid, Copy, Clipboard } from 'lucide-react';
 
 const PALETTE = [
   '#ffffff', '#e2e8f0', '#94a3b8', '#475569', '#1e293b', '#000000',
@@ -16,6 +15,7 @@ const Toolbar = ({
   setShowGrid,
   hoveredPixel,
   imageSize,
+  copiedBuffer,
   onUndo,
   onRedo,
   canUndo,
@@ -47,6 +47,15 @@ const Toolbar = ({
           >
             <Pipette size={18} />
             <span>Color Pick</span>
+          </button>
+
+          <button
+            className={`tool-button ${activeTool === 'select' ? 'active' : ''}`}
+            onClick={() => setActiveTool('select')}
+            title="Select Box (Click & drag to select area)"
+          >
+            <BoxSelect size={18} />
+            <span>Select Box</span>
           </button>
 
           <button
@@ -195,6 +204,16 @@ const Toolbar = ({
             <span className="info-label">Total Pixels</span>
             <span className="info-value">{(imageSize.width * imageSize.height).toLocaleString()} px</span>
           </div>
+          {copiedBuffer && (
+            <div className="info-row" style={{ color: 'var(--primary)', fontWeight: 600 }}>
+              <span className="info-label" style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Clipboard size={14} /> Copied Pixels
+              </span>
+              <span className="info-value" style={{ color: '#3b82f6' }}>
+                {copiedBuffer.width} × {copiedBuffer.height} px
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
